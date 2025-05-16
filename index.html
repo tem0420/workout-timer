@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>筋トレタイムスケジューラー</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #fefefe;
+      color: #333;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 1em;
+    }
+    label, input, select, button {
+      font-size: 1em;
+    }
+    .routine {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #schedule {
+      margin-top: 20px;
+      padding: 10px;
+      background: #f4f4f4;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>筋トレタイムスケジューラー</h1>
+
+  <label for="startTime">開始時間（例：12:30）:</label>
+  <input type="time" id="startTime">
+
+  <div id="routines"></div>
+
+  <button onclick="addRoutine()">＋ メニューを追加</button>
+  <button onclick="generateSchedule()">📋 スケジュールを表示</button>
+
+  <div id="schedule"></div>
+
+  <script>
+    const routinesContainer = document.getElementById('routines');
+
+    function addRoutine(name = '', minutes = '') {
+      const div = document.createElement('div');
+      div.className = 'routine';
+      div.innerHTML = `
+        <input type="text" placeholder="メニュー名" value="${name}">
+        <input type="number" placeholder="分" min="1" value="${minutes}" style="width:60px">
+        <button onclick="this.parentElement.remove()">❌</button>
+      `;
+      routinesContainer.appendChild(div);
+    }
+
+    function generateSchedule() {
+      const startTime = document.getElementById('startTime').value;
+      const routines = Array.from(document.querySelectorAll('.routine')).map(r => {
+        const name = r.querySelector('input[type=text]').value.trim();
+        const minutes = parseInt(r.querySelector('input[type=number]').value, 10);
+        return { name, minutes };
+      }).filter(r => r.name && r.minutes);
+
+      if (!startTime || routines.length === 0) {
+        alert('開始時間とメニューを入力してください');
+        return;
+      }
+
+      let [hour, minute] = startTime.split(':').map(Number);
+      let html = '<h2>スケジュール</h2><ul>';
+
+      routines.forEach(r => {
+        const start = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        minute += r.minutes;
+        while (minute >= 60) {
+          hour += 1;
+          minute -= 60;
+        }
+        const end = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        html += `<li>${start} ～ ${end}：${r.name}（${r.minutes}分）</li>`;
+      });
+      html += '</ul>';
+
+      document.getElementById('schedule').innerHTML = html;
+
+      // 保存
+      localStorage.setItem('startTime', startTime);
+      localStorage.setItem('routines', JSON.stringify(routines));
+    }
+
+    // 初期化（LocalStorage）
+    window.onload = () => {
+      const startTime = localStorage.getItem('startTime');
+      const savedRoutines = JSON.parse(localStorage.getItem('routines') || '[]');
+      if (startTime) document.getElementById('startTime').value = startTime;
+      savedRoutines.forEach(r => addRoutine(r.name, r.minutes));
+      if (savedRoutines.length === 0) addRoutine();
+    };
+  </script>
+</body>
+</html>
