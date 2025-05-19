@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>トレーニングスケジュール</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    input, textarea, button {
+      font-size: 1rem;
+      margin: 5px 0;
+    }
+    .duration-box {
+      width: 60px;
+    }
+    #output {
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 2px solid #ccc;
+    }
+    .menu-item {
+      margin-bottom: 5px;
+    }
+    .remove-button {
+      margin-left: 5px;
+      color: red;
+      cursor: pointer;
+      border: none;
+      background: none;
+      font-size: 1.5rem;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <label for="date">日付:</label>
+  <input type="date" id="date" /><br />
+
+  <label for="start">開始時間:</label>
+  <input type="time" id="start" /><br />
+
+  <label for="end">終了時間:</label>
+  <input type="time" id="end" /><br />
+
+  <label for="place">場所:</label>
+  <input type="text" id="place" /><br />
+
+  <label for="note">備考:</label>
+  <input type="text" id="note" /><br />
+
+  <label for="members">予定:</label><br />
+  <textarea id="members" rows="6" cols="40"></textarea><br />
+
+  <div id="menus"></div>
+  <button onclick="addMenu()">＋メニューを追加</button><br /><br />
+
+  <button onclick="generateSchedule()">スケジュール作成</button>
+
+  <div id="output"></div>
+
+  <script>
+    let menus = [
+      { name: 'スクワット', duration: 10 },
+      { name: '腹筋', duration: 20 },
+      { name: '腕立て', duration: 30 }
+    ];
+
+    function getFormattedDateString(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      const weekday = weekdays[date.getDay()];
+      return `${month}/${day}(${weekday})`;
+    }
+
+    function addMenu() {
+      menus.push({ name: '', duration: 10 });
+      renderMenus();
+    }
+
+    function removeMenu(index) {
+      menus.splice(index, 1);
+      renderMenus();
+    }
+
+    function updateMenu(index, field, value) {
+      menus[index][field] = field === 'duration' ? parseInt(value) || 0 : value;
+    }
+
+    function renderMenus() {
+      const menuContainer = document.getElementById('menus');
+      menuContainer.innerHTML = '';
+      menus.forEach((item, index) => {
+        menuContainer.innerHTML += `
+          <div class="menu-item">
+            <input type="text" value="${item.name}" onchange="updateMenu(${index}, 'name', this.value)" placeholder="メニュー名" />
+            <input type="number" class="duration-box" value="${item.duration}" onchange="updateMenu(${index}, 'duration', this.value)" placeholder="分" />分
+            <button class="remove-button" onclick="removeMenu(${index})">×</button>
+          </div>
+        `;
+      });
+    }
+
+    function getTrainingSchedule(startTime, menuItems) {
+      const schedule = [];
+      let [hour, minute] = startTime.split(":").map(Number);
+      for (const item of menuItems) {
+        if (!item.name || item.duration <= 0) continue;
+        const start = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        minute += item.duration;
+        if (minute >= 60) {
+          hour += Math.floor(minute / 60);
+          minute %= 60;
+        }
+        const end = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+        schedule.push(`${start}〜${end} ${item.name} ${item.duration}分`);
+      }
+      return schedule;
+    }
+
+    function generateSchedule() {
+      const date = document.getElementById("date").value;
+      const dateFormatted = getFormattedDateString(date);
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const place = document.getElementById("place").value;
+      const note = document.getElementById("note").value;
+      const members = document.getElementById("members").value;
+      const output = document.getElementById("output");
+
+      let header = `${dateFormatted} ${start}-${end}`;
+      if (place) header += ` @${place}`;
+      if (note) header += ` (${note})`;
+
+      output.innerHTML = `<strong>${header}</strong><br><br>`;
+
+      const lines = members.split("\n");
+      for (let line of lines) {
+        output.innerHTML += `<div>${line}</div>`;
+      }
+
+      const trainingSchedule = getTrainingSchedule(start, menus);
+      if (trainingSchedule.length > 0) {
+        output.innerHTML += `<br>`;
+        trainingSchedule.forEach(line => {
+          output.innerHTML += `<div>${line}</div>`;
+        });
+      }
+    }
+
+    // 初期メニュー表示
+    renderMenus();
+  </script>
+</body>
+</html>
