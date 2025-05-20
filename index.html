@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>トレーニングスケジュール</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    input, textarea, button {
+      font-size: 1rem;
+      margin: 4px 4px;
+    }
+    .menu-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .menu-row input[type="text"] {
+      width: 100px;
+    }
+    .menu-row input[type="number"] {
+      width: 60px;
+    }
+    .remove-btn {
+      font-size: 20px;
+      color: red;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
+    #resultImage {
+      display: block;
+      margin-top: 20px;
+      max-width: 100%;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    #resultCanvas {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .menu-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <label>日付:</label>
+    <input type="date" id="date"><br>
+    <label>開始時間:</label>
+    <input type="time" id="start"><br>
+    <label>終了時間:</label>
+    <input type="time" id="end"><br>
+    <label>場所:</label>
+    <input type="text" id="place"><br>
+    <label>備考:</label>
+    <input type="text" id="note"><br><br>
+
+    <label>予定:</label><br>
+    <textarea id="members" rows="5" cols="40"></textarea><br><br>
+
+    <div id="menuArea"></div>
+    <button onclick="addMenu()">＋ メニューを追加</button><br><br>
+
+    <button onclick="generateSchedule()">スケジュール作成</button><br>
+    <canvas id="resultCanvas" width="600" height="400"></canvas>
+    <img id="resultImage" onclick="expandImage()" />
+  </div>
+
+  <script>
+    let menuList = [];
+
+    function addMenu() {
+      const id = Date.now();
+      menuList.push(id);
+      const div = document.createElement("div");
+      div.className = "menu-row";
+      div.id = `menu-${id}`;
+      div.innerHTML = `
+        <input type="text" placeholder="メニュー" />
+        <input type="number" placeholder="分" />
+        <button class="remove-btn" onclick="removeMenu(${id})">×</button>
+      `;
+      document.getElementById("menuArea").appendChild(div);
+    }
+
+    function removeMenu(id) {
+      document.getElementById(`menu-${id}`)?.remove();
+      menuList = menuList.filter(m => m !== id);
+    }
+
+    function getFormattedDate(dateStr) {
+      const date = new Date(dateStr);
+      const weekday = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+      return `${date.getMonth() + 1}/${date.getDate()}(${weekday})`;
+    }
+
+    function generateSchedule() {
+      const date = document.getElementById("date").value;
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const place = document.getElementById("place").value;
+      const note = document.getElementById("note").value;
+      const members = document.getElementById("members").value.trim().split("\n");
+
+      const formattedDate = getFormattedDate(date);
+      let header = `${formattedDate} ${start}-${end}`;
+      if (place) header += ` @${place}`;
+      if (note) header += ` (${note})`;
+
+      const menuElements = document.querySelectorAll("#menuArea .menu-row");
+      let schedule = [];
+      let hour = +start.split(":")[0];
+      let minute = +start.split(":")[1];
+
+      for (let el of menuElements) {
+        const name = el.children[0].value.trim();
+        const dur = parseInt(el.children[1].value) || 0;
+        if (!name || dur <= 0) continue;
+        const startStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        minute += dur;
+        hour += Math.floor(minute / 60);
+        minute %= 60;
+        const endStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        schedule.push(`${startStr}～${endStr} ${name}（${dur}分）`);
+      }
+
+      drawToCanvas(header, [...members, ...schedule]);
+    }
+
+    function drawToCanvas(header, lines) {
+  const canvas = document.getElementById("resultCanvas");
+  const ctx = canvas.getContext("2d");
+  ctx.font = "16px sans-serif";
+
+  const padding = 20;
+  const lineHeight = 24;
+
+  const allLines = [header, ...lines];
+  const maxTextWidth = Math.max(...allLines.map(line => ctx.measureText(line).width));
+  const width = Math.min(maxTextWidth + padding * 2, 500); // 最大幅500pxに制限
+  const height = padding * 2 + lineHeight * allLines.length;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "black";
+
+  let y = padding + 8;
+  for (const line of allLines) {
+    ctx.fillText(line, padding, y);
+    y += lineHeight;
+  }
+
+  const img = document.getElementById("resultImage");
+  img.src = canvas.toDataURL("image/png");
+  img.style.display = "block";
+  img.style.maxWidth = "100%";
+}
+
+
+    function expandImage() {
+      const img = document.getElementById("resultImage");
+      if (img.style.maxWidth === "100%") {
+        img.style.maxWidth = "90vw";
+      } else {
+        img.style.maxWidth = "100%";
+      }
+    }
+  </script>
+</body>
+</html>
