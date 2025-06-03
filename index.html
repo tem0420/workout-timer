@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>トレーニングスケジュール</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    input, textarea, button {
+      font-size: 1rem;
+      margin: 4px 4px;
+    }
+    .menu-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .menu-row input[type="text"] {
+      width: 100px;
+    }
+    .menu-row input[type="number"] {
+      width: 60px;
+    }
+    .remove-btn, .move-btn {
+      font-size: 18px;
+      border: none;
+      background: none;
+      cursor: pointer;
+    }
+    .remove-btn { color: red; }
+    .move-btn { color: #333; }
+    #resultImage {
+      display: block;
+      margin-top: 20px;
+      max-width: 100%;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    #resultCanvas {
+      display: none;
+    }
+    @media (max-width: 600px) {
+      .menu-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 以下を既存HTMLにそのまま置き換え -->
+
+<!-- ... 既存の <style> などはそのまま ... -->
+
+<div>
+  <label>日付:</label>
+  <input type="date" id="date"><br>
+  <label>開始時間:</label>
+  <input type="time" id="start"><br>
+  <label>終了時間:</label>
+  <input type="time" id="end"><br>
+  <label>場所:</label>
+  <input type="text" id="place"><br>
+  <label>備考:</label>
+  <input type="text" id="note"><br><br>
+
+  <label>予定:</label><br>
+  <textarea id="members" rows="5" cols="40"></textarea><br><br>
+
+  <div id="menuArea"></div>
+  <button onclick="addMenu()">＋ メニューを追加</button><br><br>
+
+  <button onclick="generateSchedule()">スケジュール作成</button>
+  <button onclick="saveData()">💾 保存</button>
+  <input type="file" id="loadFile" accept=".json" onchange="loadData(event)" />
+  <br><br>
+
+  <canvas id="resultCanvas"></canvas>
+  <img id="resultImage" onclick="expandImage()" />
+</div>
+
+<script>
+  function addMenu(name = "", dur = "") {
+    const div = document.createElement("div");
+    div.className = "menu-row";
+    div.innerHTML = `
+      <input type="text" placeholder="メニュー" value="${name}" />
+      <input type="number" placeholder="分" value="${dur}" />
+      <button class="move-btn" onclick="moveMenu(this, -1)">↑</button>
+      <button class="move-btn" onclick="moveMenu(this, 1)">↓</button>
+      <button class="remove-btn" onclick="this.parentElement.remove()">×</button>
+    `;
+    document.getElementById("menuArea").appendChild(div);
+  }
+
+  function moveMenu(btn, direction) {
+    const row = btn.parentElement;
+    const area = document.getElementById("menuArea");
+    if (direction === -1 && row.previousElementSibling) {
+      area.insertBefore(row, row.previousElementSibling);
+    } else if (direction === 1 && row.nextElementSibling) {
+      area.insertBefore(row.nextElementSibling, row);
+    }
+  }
+
+  function getFormattedDate(dateStr) {
+    const date = new Date(dateStr);
+    const weekday = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+    return `${date.getMonth() + 1}/${date.getDate()}(${weekday})`;
+  }
+
+  function generateSchedule() {
+    const date = document.getElementById("date").value;
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    const place = document.getElementById("place").value;
+    const note = document.getElementById("note").value;
+    const members = document.getElementById("members").value.trim().split("\n");
+
+    const formattedDate = getFormattedDate(date);
+    let header = `${formattedDate} ${start}-${end}`;
+    if (place) header += ` @${place}`;
+    if (note) header += ` (${note})`;
+
+    const menuElements = document.querySelectorAll("#menuArea .menu-row");
+    let schedule = [];
+    let hour = +start.split(":")[0];
+    let minute = +start.split(":")[1];
+
+    for (let el of menuElements) {
+      const name = el.children[0].value.trim();
+      const dur = parseInt(el.children[1].value) || 0;
+      if (!name || dur <= 0) continue;
+      const startStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      minute += dur;
+      hour += Math.floor(minute / 60);
+      minute %= 60;
+      const endStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      schedule.push(`${startStr}～${endStr} ${name}（${dur}分）`);
+    }
+
+    drawToCanvas(header, [...members, ...schedule]);
+  }
+
+  function drawToCanvas(header, lines) {
+    const canvas = document.getElementById("resultCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const scale = 2;
+    ctx.font = `${16 * scale}px sans-serif`;
+
+    const padding = 20 * scale;
+    const lineHeight = 24 * scale;
+    const allLines = [header, ...lines];
+    const maxTextWidth = Math.max(...allLines.map(line => ctx.measureText(line).width));
+    const width = Math.min(maxTextWidth + padding * 2, 500 * scale);
+    const height = padding * 2 + lineHeight * allLines.length;
+
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = width / scale + "px";
+    canvas.style.height = height / scale + "px";
+
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "black";
+
+    let y = padding / scale + 8;
+    for (const line of allLines) {
+      ctx.fillText(line, padding / scale, y);
+      y += lineHeight / scale;
+    }
+
+    const img = document.getElementById("resultImage");
+    img.src = canvas.toDataURL("image/png");
+    img.style.display = "block";
+  }
+
+  function expandImage() {
+    const img = document.getElementById("resultImage");
+    img.style.maxWidth = img.style.maxWidth === "100%" ? "90vw" : "100%";
+  }
+
+  function saveData() {
+    const data = {
+      date: document.getElementById("date").value,
+      start: document.getElementById("start").value,
+      end: document.getElementById("end").value,
+      place: document.getElementById("place").value,
+      note: document.getElementById("note").value,
+      members: document.getElementById("members").value,
+      menu: Array.from(document.querySelectorAll("#menuArea .menu-row")).map(row => ({
+        name: row.children[0].value,
+        duration: row.children[1].value
+      }))
+    };
+    
+  
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mi = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+
+    const fileName = `スケジュール_${yyyy}${mm}${dd}_${hh}${mi}${ss}.json`;
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+ 
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+   
+  function loadData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        document.getElementById("date").value = data.date || "";
+        document.getElementById("start").value = data.start || "";
+        document.getElementById("end").value = data.end || "";
+        document.getElementById("place").value = data.place || "";
+        document.getElementById("note").value = data.note || "";
+        document.getElementById("members").value = data.members || "";
+        document.getElementById("menuArea").innerHTML = "";
+        (data.menu || []).forEach(item => addMenu(item.name, item.duration));
+      } catch (err) {
+        alert("読み込みに失敗しました。JSON形式が正しいか確認してください。");
+      }
+    };
+    reader.readAsText(file);
+  }
+</script>
+
+
